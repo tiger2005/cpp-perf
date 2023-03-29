@@ -26,10 +26,15 @@ import {
 } from './gprof/gprof.js';
 
 // 可调控选项
+// 命令行编码方式
 const CMD_ENCODE_RULE = "cp936";
+// 在开启调试信息获取时的编译参数
 const GCC_COMPILE_FLAGS_PROFILE = "-pg -g -no-pie -ftest-coverage -fprofile-arcs -A";
+// 在关闭调试信息获取时的编译参数
 const GCC_COMPILE_FLAGS_NO_PROFILE = "";
+// 输入信息快照的长度
 const MAX_INPUT_SNAPSHOT_LENGTH = 1024;
+// 本地服务器端口，用于呈现性能数据
 const CPP_PERF_PORT = 23456;
 // 默认设置
 let GCC_COMPILE_FLAGS = "";
@@ -54,7 +59,6 @@ let SAVE_SERVE = true;
 let RUN_ID = undefined;
 let CWD = "";
 // 暂存运行信息
-let GMON_SIZE = 0;
 let PROFILE_ARRAY = [];
 let TIME_TICKS = [];
 let CODE_LIBRARY = [];
@@ -250,6 +254,8 @@ const startCompile = async () => {
         fs.unlinkSync(path.join(CWD, COMPILE_TARGET + '.gcda'))
       if (fs.existsSync(path.join(CWD, COMPILE_TARGET + '.gcno')))
         fs.unlinkSync(path.join(CWD, COMPILE_TARGET + '.gcno'))
+      if (fs.existsSync(path.join(CWD, 'gmon.out')))
+        fs.unlinkSync(path.join(CWD, 'gmon.out'))
     }
     catch (error) {
       spinner.fail(chalk.redBright(`File system error.`));
@@ -335,8 +341,8 @@ const startRun = () => {
 
   let stdo = "",
     stde = "";
-  cp.stdout.on('data', COLLECT_STDOUT ? (() => {;}) : ((data) => { stdo += data.toString('hex'); }))
-  cp.stderr.on('data', COLLECT_STDERR ? (() => {;}) : ((data) => { stde += data.toString('hex'); }))
+  cp.stdout.on('data', (COLLECT_STDOUT ? ((data) => { stdo += data.toString('hex'); }) : (() => {;})))
+  cp.stderr.on('data', (COLLECT_STDERR ? ((data) => { stde += data.toString('hex'); }) : (() => {;})))
   process.on('SIGINT', () => cp.kill('SIGINT'));
   cp.on('close', (code) => RETURN_CODE = (code === null ? "TIMEOUT" : code));
 
@@ -405,13 +411,6 @@ const startCollectCodes = () => {
 // 5: gcov xxx.exe -t -r -i -m
 // convert: 根据收集的文件集合判断是否启用路径映射
 const startCollectProfile = (sf) => {
-  try {
-    const stat = fs.statSync(path.join(CWD, "gmon.out"));
-    GMON_SIZE = stat.size;
-    console.log(chalk.cyanBright(`! gmon.out contains ${GMON_SIZE} byte(s).`))
-  } catch (error) {
-    alert(`Error: Cannot fine gmon.out.`);
-  }
   const spinner = new ora('Parsing profiling file... (1 / 4)').start();
   try {
     const content = child_process.spawnSync(
@@ -525,20 +524,6 @@ const startCollectProfile = (sf) => {
     }));
   } catch (error) {
     spinner.fail(chalk.redBright(`Error: Cannot parse cover result.`));
-    console.log(error);
-    process.exit(4);
-  }
-
-  spinner.text = `Deleting cover files...`;
-
-  try {
-    if (fs.existsSync(path.join(CWD, COMPILE_TARGET + '.gcda')))
-      fs.unlinkSync(path.join(CWD, COMPILE_TARGET + '.gcda'))
-    if (fs.existsSync(path.join(CWD, COMPILE_TARGET + '.gcno')))
-      fs.unlinkSync(path.join(CWD, COMPILE_TARGET + '.gcno'))
-  }
-  catch (error) {
-    spinner.fail(chalk.redBright(`Error: Cannot delete cover files.`));
     console.log(error);
     process.exit(4);
   }
@@ -782,7 +767,6 @@ else if (argv[0] === "run") {
       };
       if (COLLECT_PROFILE && RETURN_CODE === 0)
         res.profile = {
-          "fs": GMON_SIZE,
           "content": PROFILE_ARRAY
         };
       res.timeticks = TIME_TICKS;
