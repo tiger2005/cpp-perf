@@ -1,0 +1,473 @@
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src: url(./HarmonyOS_Sans_SC_Regular.ttf) format("truetype");
+}
+
+@font-face {
+  font-family: 'Rubik';
+  src: url(./Rubik-Regular.ttf) format("truetype");
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  width: min(calc(100% - 32px), 1000px);
+  margin: 0px auto;
+  position: relative;
+  background: #111827;
+  color: white;
+  font-family: 'Rubik', 'HarmonyOS Sans SC', 'sans-serif;';
+  font-size: 16px;
+}
+
+pre, .code-container {
+  font-family: "Fira Code", "Noto Sans CJK SC", "Source Han Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft Yahei", "WenQuanYi Micro Hei", "Droid Sans Fallback", monospace !important;
+}
+
+.title {
+  height: 40px;
+  display: flex;
+  flex-direction: row;
+  margin: 12px 0px;
+}
+
+.title .data {
+  flex: 1;
+  font-weight: bold;
+  font-size: 24px;
+  line-height: 40px;
+}
+
+.title .switch {
+  width: 34px;
+  border-radius: 4px;
+  margin: 3px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.title .switch:hover {
+  background: #374151;
+}
+
+.title .switch svg {
+  fill: white;
+  width: 24px;
+  height: 24px;
+  margin: 5px;
+}
+
+.layer {
+  width: 100%;
+  height: 32px;
+  line-height: 32px;
+  text-align: center;
+  font-size: 24px;
+  margin: 48px 0px;
+  display: none;
+}
+
+.content {
+  margin: 24px 0px;
+  width: 100%;
+  display: none;
+}
+
+.brief-line {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.brief-line > span {
+  line-height: 22px;
+}
+
+.brief-line > span:last-child {
+  flex: 1;
+  overflow: hidden;
+  display: inline-block;
+}
+
+.brief-line svg {
+  width: 20px;
+  height: 20px;
+}
+
+.perf-box, .io-box, ._io-dom {
+  width: 100%;
+  height: 240px;
+  position: relative;
+}
+
+#perf, #io, #_io {
+  width: 100%;
+  height: 100%;
+}
+
+.subtitle {
+  margin: 24px 0px 12px 0px;
+  font-size: 18px;
+}
+
+body *::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+
+body *::-webkit-scrollbar-button {
+  width: 0px;
+  height: 0px;
+}
+
+body *::-webkit-scrollbar-track, body *::-webkit-scrollbar-corner {
+  background-color: #00000000;
+}
+
+body *::-webkit-scrollbar-thumb {
+  background-color: #ADADAD;
+}
+
+body *::-webkit-scrollbar-thumb:hover {
+  background-color: teal;
+}
+
+.code-block {
+  color: #c9d1d9;
+  background: #0d1117;
+}
+
+.flex {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: none;
+}
+
+.flex .selector {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  margin: 8px 0px;
+  padding: 0px 10px;
+  box-sizing: border-box;
+  line-height: 28px;
+  border-radius: 4px;
+  background: #374151;
+}
+
+.flex .selector input {
+  background: transparent;
+  outline: 0;
+  border: 0;
+  color: inherit;
+  font-family: inherit;
+  height: 28px;
+  line-height: 28px;
+  font-size: 16px;
+  width: 80px;
+  position: relative;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.flex .hashtag {
+  font-size: 16px;
+}
+
+.flex pre {
+  margin: 0;
+}
+
+pre.input {
+  max-height: 300px;
+  overflow: auto;
+}
+
+.output-code {
+  max-height: 300px;
+  overflow: auto;
+}
+
+.button-group {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+}
+
+.button-group > div {
+  font-size: 16px;
+  border-radius: 4px;
+  padding: 8px 12px;
+  transition: 0.2s;
+  user-select: none;
+  cursor: pointer;
+}
+
+.button-group > div.selected, .button-group > div:hover {
+  background: #374151;
+}
+
+.pages > div {
+  display: none;
+  margin: 12px 0px;
+}
+
+table {
+  margin: 0;
+  font-size: .72rem;
+  border: 0.05rem solid #ffffff3f;
+  background-color: #1F2937;
+  border-radius: .1rem;
+  min-width: 100%;
+  overflow: hidden;
+  touch-action: auto;
+  border-spacing: 0;
+  box-sizing: border-box;
+  border-collapse: initial;
+  table-layout: fixed;
+}
+
+table tr {
+  width: 100%;
+}
+
+table th {
+  font-weight: 700;  /*min-width: 5rem;*/
+  padding: .8em 1em;
+  vertical-align: top;
+  box-sizing: border-box;
+}
+
+table tbody tr {
+  background-color: #1F2937;
+  transition: background-color .125s;
+}
+
+table tbody tr:hover {
+  background-color: rgb(255 255 255 / 4%);
+}
+
+table td {
+  border-top: .05rem solid #ffffff3f;
+  padding: .8em 1em;
+  vertical-align: top;
+  word-wrap: break-word;
+  width: auto !important;
+}
+
+a {
+  text-decoration: none;
+  color: #7388ff;
+  transition: 0.125s;
+  cursor: pointer;
+}
+
+a:is(:active, :clicked, :visited) {
+  outline: 0;
+  color: #7388ff;
+}
+
+a:is(:hover) {
+  outline: 0;
+  color: #00bda4;
+}
+
+pre code, .code-container {
+  font-size: 14px;
+  line-height: 18.2px;
+  tab-size: 4;
+}
+
+.code-container {
+  margin-top: 12px;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  display: flow-root;
+}
+
+.code-container .front {
+  overflow: auto;
+}
+
+.code-container pre {
+  margin-top: 0px;
+}
+
+.code-container .back {
+  position: absolute;
+  top: 14px;
+  left: 0px;
+  width: 100%;
+  z-index: 2;
+}
+
+.code-container .back > div {
+  height: 18.2px;
+  width: 100%;
+}
+
+.code-container .front {
+  z-index: 3;
+  position: relative;
+  /*position: absolute;
+  top: 0;
+  left: 0;*/
+  font-family: 'Fira Code';
+  display: flex;
+  flex-direction: row;
+}
+
+.code-container .front code {
+  background-color: transparent;
+}
+
+.code-container .front .times, .code-container .front .lines, .code-container .front .runtime {
+  padding-top: 14px;
+  font-size: 14px;
+  line-height: 18.2px;
+  text-align: right;
+  user-select: none;
+}
+
+.code-container .front .runtime > div {
+  padding: 0px 14px;
+  text-align: right;
+}
+
+.code-container .front .lines > div {
+  padding: 0px 10px;
+  border-right: 2px solid #4B5563;
+}
+
+.code-container .front .times > div {
+  padding: 0px 14px;
+}
+
+.code-container .front .times .idle {
+  background-color: #374151;
+}
+
+.code-container .front .times .normal {
+  background-color: #047857;
+  cursor: pointer;
+}
+
+.code-container .front .times .conflict {
+  background-color: #B91C1C;
+  cursor: pointer;
+}
+
+.code-title {
+  background-color: #111827;
+  margin: 12px 0px;
+  width: 100%;
+  position: sticky;
+  box-sizing: border-box;
+  top: 0;
+  z-index: 5;
+  overflow: hidden;
+  border-bottom: 2px solid #ffffff3f;
+}
+
+.code-title .code-name {
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  width: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.code-name .data {
+  flex: 1;
+  margin-right: 12px;
+}
+
+.code-name .top {
+  cursor: pointer;
+}
+
+.code-tip {
+  display: none;
+  max-height: 200px;
+  overflow: auto;
+  width: 100%;
+  font-size: 14px;
+  padding: 0px 12px;
+  box-sizing: border-box;
+}
+
+._func {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 3px 0px;
+  position: relative;
+}
+
+._func .func-name {
+  flex: 1;
+}
+
+._func .func-name, ._func .func-name * {
+  display: inline-block;
+}
+
+._func .func-name .sub-link {
+  margin-left: 10px;
+  font-size: 14px;
+}
+
+._func.func-called {
+  padding-left: 30px;
+  background: rgba(239, 68, 68, 0.2);
+}
+
+._func.func-calls {
+  padding-left: 30px;
+  background: rgba(16, 185, 129, 0.2);
+}
+
+._func.func-called::before {
+  content: '←';
+  position: absolute;
+  top: 3px;
+  left: 10px;
+}
+
+._func.func-calls::before {
+  content: '→';
+  position: absolute;
+  top: 3px;
+  left: 10px;
+}
+
+.code-table-footer {
+  width: 100%;
+  box-sizing: border-box;
+  position: sticky;
+  bottom: 0px;
+  padding: 8px 0px;
+  text-align: right;
+  background-color: #111827;
+}
+
+.line-mark {
+  background: #874040 !important;
+}
+
+.use {
+  display: block !important;
+}
+
+.unuse {
+  display: none !important;
+}

@@ -1,0 +1,3 @@
+addon/*.exe
+node_modules/
+test/
