@@ -10,7 +10,7 @@
 
 ### TODO
 
-- [ ] 将 `addon/perf.cpp` 转为 C++ Addon 嵌入代码
+- [x] 将 `addon/perf.cpp` 转为 C++ Addon 嵌入代码
 - [ ] 通过某种方式提高 `gprof` 命令的精度或者直接替换掉
 - [ ] 整理 `public/js/main.js` 的代码风格
 - [ ] 支持其他系统（主要是改写 `addon/perf.cpp` 或者找高效的库）
