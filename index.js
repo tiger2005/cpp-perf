@@ -266,8 +266,8 @@ const startCompile = async () => {
     let errS = "";
     res.stderr.on('data', (data) => errS += data.toString())
     res.on('close', (err) => {
-      if (err.status) {
-        spinner.fail(chalk.redBright(`Error: Compilation error, exit code is ${err.status}.`));
+      if (err) {
+        spinner.fail(chalk.redBright(`Error: Compilation error, exit code is ${err}.`));
         console.log(trim(errS));
         process.exit(3);
       }
@@ -412,7 +412,7 @@ const startCollectProfile = (sf) => {
       }
     );
     if (content.status) {
-      spinner.fail(chalk.redBright(`Error: gprof returns with code ${content.status}.`));
+      spinner.fail(chalk.redBright(`Error: gprof returns with exit code ${content.status}.`));
       process.exit(4);
     }
     PROFILE_ARRAY.push(readFlatNormal(iconv.decode(content.stdout, CMD_ENCODE_RULE)));
@@ -432,7 +432,7 @@ const startCollectProfile = (sf) => {
       }
     );
     if (content.status) {
-      alert(`Error: gprof returns with code ${content.status}.`);
+      alert(`Error: gprof returns with exit code ${content.status}.`);
       console.log(content);
       process.exit(4);
     }
@@ -459,7 +459,7 @@ const startCollectProfile = (sf) => {
       }
     );
     if (content.status) {
-      spinner.fail(chalk.redBright(`Error: gprof returns with code ${content.status}.`));
+      spinner.fail(chalk.redBright(`Error: gprof returns with exit code ${content.status}.`));
       process.exit(4);
     }
     PROFILE_ARRAY.push(readGraphNormal(iconv.decode(content.stdout, CMD_ENCODE_RULE)));
@@ -480,7 +480,7 @@ const startCollectProfile = (sf) => {
       }
     );
     if (content.status)
-      alert(`Error: gprof returns with code ${content.status}.`);
+      alert(`Error: gprof returns with exit code ${content.status}.`);
     PROFILE_ARRAY.push(readGraphLine(iconv.decode(content.stdout, CMD_ENCODE_RULE), (p) => {
       p = path.normalize(p);
       if (sf.indexOf(p) !== -1)
@@ -506,7 +506,7 @@ const startCollectProfile = (sf) => {
       }
     );
     if (content.status)
-      alert(`Error: gcov returns with code ${content.status}.`);
+      alert(`Error: gcov returns with exit code ${content.status}.`);
     PROFILE_ARRAY.push(readCoverJSON(iconv.decode(content.stdout, CMD_ENCODE_RULE), (p) => {
       p = path.resolve(path.join(CWD, p));
       if (sf.indexOf(p) !== -1)
