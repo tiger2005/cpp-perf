@@ -1,5 +1,6 @@
 // Code from https://zhuanlan.zhihu.com/p/266839249
-#include <iostream>
+// #include <iostream>
+#include <napi.h>
 #include <process.h>
 #include <string.h>
 #include <windows.h>
@@ -25,7 +26,14 @@ static uint64_t convert_time_format(const FILETIME* ftime) {
 
 bool tf = false, ttf = false;
 
-inline float GetCpuUsageRatio(int pid) {
+Napi::Value GetCpuUsageRatio(const Napi::CallbackInfo& _info) {
+  Napi::Env env = _info.Env();
+  if (_info.Length() < 1) {
+    Napi::TypeError::New(env, "WRONG_ARGUMENT_LENGHT")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  int pid = _info[0].As<Napi::Number>().Int32Value();
   static int64_t last_time = 0;
   static int64_t last_system_time = 0;
 
@@ -50,13 +58,16 @@ inline float GetCpuUsageRatio(int pid) {
   HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
   // std::cout << "? " << GetLastError() << std::endl;
   if (process == NULL) {
-    throw "PID_NOT_FOUND";
+    Napi::TypeError::New(env, "PID_NOT_FOUND").ThrowAsJavaScriptException();
+    return env.Null();
   }
   DWORD returnCode;
   if (GetExitCodeProcess(process, &returnCode)) {
     if (returnCode != STILL_ACTIVE) {
-      if (tf)
-        throw "PID_NOT_FOUND";
+      if (tf) {
+        Napi::TypeError::New(env, "PID_NOT_FOUND").ThrowAsJavaScriptException();
+        return env.Null();
+      }
       else
         ttf = true;
     }
@@ -70,7 +81,8 @@ inline float GetCpuUsageRatio(int pid) {
     // We don't assert here because in some cases (such as in the Task Manager)
     // we may call this function on a process that has just exited but we have
     // not yet received the notification.
-    throw "TIME_ERROR";
+    Napi::TypeError::New(env, "TIME_ERROR").ThrowAsJavaScriptException();
+    return env.Null();
   }
 
   // should handle the multiple cpu num
@@ -81,7 +93,7 @@ inline float GetCpuUsageRatio(int pid) {
     // First call, just set the last values.
     last_system_time = system_time;
     last_time = time;
-    return 0.0;
+    return Napi::Number::New(env, 0);
   }
 
   system_time_delta = system_time - last_system_time;
@@ -90,7 +102,8 @@ inline float GetCpuUsageRatio(int pid) {
   CloseHandle(process);
 
   if (time_delta == 0) {
-    throw "TIME_ERROR";
+    Napi::TypeError::New(env, "TIME_ERROR").ThrowAsJavaScriptException();
+    return env.Null();
   }
 
   // We add time_delta / 2 so the result is rounded.
@@ -98,24 +111,34 @@ inline float GetCpuUsageRatio(int pid) {
   last_system_time = system_time;
   last_time = time;
 
-  return cpu_ratio;
+  return Napi::Number::New(env, cpu_ratio);
 }
 
 // get specific process physical memeory occupation size by pid (MB)
-inline uint64_t GetMemoryUsage(int pid) {
+Napi::Value GetMemoryUsage(const Napi::CallbackInfo& _info) {
+  Napi::Env env = _info.Env();
+  if (_info.Length() < 1) {
+    Napi::TypeError::New(env, "WRONG_ARGUMENT_LENGHT")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  int pid = _info[0].As<Napi::Number>().Int32Value();
   uint64_t mem = 0;
   PROCESS_MEMORY_COUNTERS pmc;
 
   // get process hanlde by pid
   HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
   if (process == NULL) {
-    throw "PID_NOT_FOUND";
+    Napi::TypeError::New(env, "PID_NOT_FOUND").ThrowAsJavaScriptException();
+    return env.Null();
   }
   DWORD returnCode;
   if (GetExitCodeProcess(process, &returnCode)) {
     if (returnCode != STILL_ACTIVE) {
-      if (tf)
-        throw "PID_NOT_FOUND";
+      if (tf) {
+        Napi::TypeError::New(env, "PID_NOT_FOUND").ThrowAsJavaScriptException();
+        return env.Null();
+      }
       else
         ttf = true;
     }
@@ -124,55 +147,55 @@ inline uint64_t GetMemoryUsage(int pid) {
     mem = pmc.WorkingSetSize;
     // vmem = pmc.PagefileUsage;
   } else {
-    throw "MEMORY_ERROR";
+    Napi::TypeError::New(env, "MEMORY_ERROR").ThrowAsJavaScriptException();
+    return env.Null();
   }
   CloseHandle(process);
-
-  // use GetCurrentProcess() can get current process and no need to close handle
-
-  // convert mem from B to MB
-  return mem;
+  return Napi::Number::New(env, mem);
 }
 
-std::pair<uint64_t, uint64_t> GetIOBytes(int pid) {
+Napi::Value GetIOBytes(const Napi::CallbackInfo& _info) {
+  Napi::Env env = _info.Env();
+  if (_info.Length() < 1) {
+    Napi::TypeError::New(env, "WRONG_ARGUMENT_LENGHT")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  int pid = _info[0].As<Napi::Number>().Int32Value();
   IO_COUNTERS io_counter;
   HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
   if (process == NULL) {
-    throw "PID_NOT_FOUND";
+    Napi::TypeError::New(env, "PID_NOT_FOUND").ThrowAsJavaScriptException();
+    return env.Null();
   }
   DWORD returnCode;
   if (GetExitCodeProcess(process, &returnCode)) {
     if (returnCode != STILL_ACTIVE) {
-      if (tf)
-        throw "PID_NOT_FOUND";
+      if (tf) {
+        Napi::TypeError::New(env, "PID_NOT_FOUND").ThrowAsJavaScriptException();
+        return env.Null();
+      }
       else
         ttf = true;
     }
   }
-  if (GetProcessIoCounters(process, &io_counter))
-    return std::make_pair(io_counter.ReadTransferCount, io_counter.WriteTransferCount);
-  throw "IO_ERROR";
+  if (GetProcessIoCounters(process, &io_counter)) {
+    Napi::Array arr = Napi::Array::New(env, 2);
+    arr.Set(Napi::Number::New(env, 0), Napi::Number::New(env, io_counter.ReadTransferCount));
+    arr.Set(Napi::Number::New(env, 1), Napi::Number::New(env, io_counter.WriteTransferCount));
+    // deal with storage
+    tf |= ttf;
+    return arr;
+  }
+  Napi::TypeError::New(env, "IO_ERROR").ThrowAsJavaScriptException();
+  return env.Null();
 }
 
-int main() {
-  int pid, interval;
-  std::ios::sync_with_stdio(false);
-  std::cin.tie(0);
-  std::cout.tie(0);
-  std::cin >> pid >> interval;
-  clock_t st = clock();
-  while (true) {
-    try {
-      float cpu = GetCpuUsageRatio(pid);
-      uint64_t mem = GetMemoryUsage(pid);
-      std::pair<uint64_t, uint64_t> io = GetIOBytes(pid);
-      std::cout << (clock() - st) << " " << cpu << " " << mem << " " << io.first << " " << io.second << std::endl;
-      Sleep(interval);
-      tf |= ttf;
-    } catch (const char* err) {
-      std::cerr << err << std::endl;
-      break;
-    }
-  }
-  return 0;
+Napi::Object Init(Napi::Env env, Napi::Object exports) {
+  exports.Set("GetCpuUsageRatio", Napi::Function::New(env, GetCpuUsageRatio));
+  exports.Set("GetMemoryUsage", Napi::Function::New(env, GetMemoryUsage));
+  exports.Set("GetIOBytes", Napi::Function::New(env, GetIOBytes));
+  return exports;
 }
+
+NODE_API_MODULE(addon, Init)

@@ -11,6 +11,8 @@ import formidable from 'formidable';
 import readline from 'readline';
 import iconv from 'iconv-lite';
 import request from 'request';
+import { createRequire } from "module";
+import { program } from 'commander';
 
 // 解析文件所在位置
 import { fileURLToPath } from 'url';
@@ -25,6 +27,10 @@ import {
   readCoverJSON
 } from './gprof/gprof.js';
 
+program
+  .name('cpp-perf')
+  .version('0.1.0', '-v, --version')
+
 // 可调控选项
 // 命令行编码方式
 const CMD_ENCODE_RULE = "cp936";
@@ -36,6 +42,8 @@ const GCC_COMPILE_FLAGS_NO_PROFILE = "";
 const MAX_INPUT_SNAPSHOT_LENGTH = 1024;
 // 本地服务器端口，用于呈现性能数据
 const CPP_PERF_PORT = 23456;
+// 可执行文件的后缀
+const EXCUTABLE_FILE_SUFFIX = ".exe";
 // 默认设置
 let GCC_COMPILE_FLAGS = "";
 let GCC_OPTIMIZE_FLAGS = "-std=c++17 -O2";
@@ -141,8 +149,24 @@ const abstract = (arr) => {
   return ret;
 }
 
+// 监测程序的引用
+const require = createRequire(import.meta.url);
+// const content = require('./addon/perf_win32.node')
+let MONITOR_REQUIRE = {};
+
 // 准备环境
 const prepareEnvironment = () => {
+  const spinner = new ora(`Checking monitor...`).start()
+  let p = `./addon/perf_${process.platform}_${process.arch}.node`;
+  try {
+    MONITOR_REQUIRE = require(p);
+  }
+  catch (error) {
+    spinner.fail(chalk.redBright(`Error: Monitor file not found. platform = ${process.platform}; arch = ${process.arch}`))
+    process.exit(2);
+  }
+  spinner.succeed(chalk.greenBright(`Monitor found. platform = ${process.platform}; arch = ${process.arch}`))
+
   const _spinner = new ora(`Checking g++...`).start()
   let cp = child_process.spawnSync(
     'g++', ['-v'], {
@@ -181,30 +205,6 @@ const prepareEnvironment = () => {
     else {
       _spinner_3.succeed(chalk.greenBright(`gprof found: ` + abstract(cp.stdout.toString().split('\n'))[0]))
     }
-
-  }
-
-  const spinner = new ora(`Checking monitor...`).start()
-  if (fs.existsSync(path.join(__dirnameNew, 'addon', 'perf.exe')))
-    spinner.succeed(chalk.greenBright(`~/addon/perf.exe found.`));
-  else {
-    spinner.text = `~/addon/perf.exe not found. Compiling...`;
-    const res = child_process.spawnSync(
-      'g++', abstract([
-        'perf.cpp',
-        '-o',
-        'perf',
-        ...GCC_OPTIMIZE_FLAGS.split(' ')
-      ]), {
-      cwd: path.join(__dirnameNew, 'addon'),
-      env: COMPILE_ENV
-    });
-    if (res.status) {
-      spinner.fail(chalk.redBright(`Error: Monitor compilation error, exit code is ${res.status}.`));
-      console.log(trim(res.stderr.toString()));
-      process.exit(2);
-    }
-    spinner.succeed(chalk.greenBright(`Monitor built successfully.`));
   }
 }
 
@@ -212,37 +212,29 @@ const prepareEnvironment = () => {
 const monitorPID = (pid, interval, cb, fin) => {
   const spinner = ora(`MONITOR: pid = ${pid}`).start();
 
-  const res = [];
+  const st = Date.now();
+  let cnt = 0;
+  const fetcher = () => {
+    try {
+      let res = [Date.now() - st];
+      res.push(MONITOR_REQUIRE.GetCpuUsageRatio(pid));
+      res.push(MONITOR_REQUIRE.GetMemoryUsage(pid));
+      res.push(...MONITOR_REQUIRE.GetIOBytes(pid));
+      cb(++ cnt, res, (str) => {
+        spinner.text = str;
+      })
+      setTimeout(fetcher, interval)
+    }
+    catch (error) {
+      if (error.message === "PID_NOT_FOUND")
+        spinner.succeed(chalk.greenBright(`MONITOR: Finished, ${cnt} data(s) collected.`));
+      else
+        spinner.fail(chalk.redBright(`MONITOR: Aborted, ${cnt} data(s) collected.`));
+      fin();
+    }
+  }
 
-  const cp = child_process.spawn('./addon/perf.exe', {
-    cwd: __dirnameNew
-  });
-  cp.stdin.write(`${pid} ${interval}\n`);
-
-  cp.stdout.on('data', (data) => {
-    let str = data.toString();
-    str = trim(str);
-    str = str.split(' ').map((x) => Number(x));
-
-    res.push(str);
-    cb(res.length, str, (str) => {
-      spinner.text = str;
-    });
-  })
-
-  cp.stderr.on('data', (data) => {
-    spinner.text = (chalk.yellowBright("MONITOR: SIGNAL " + data.toString()));
-  })
-
-  cp.on('close', (code) => {
-    if (code === 0)
-      spinner.succeed(chalk.greenBright(`MONITOR: Finished, ${res.length} data(s) collected.`));
-    else
-      spinner.fail(chalk.yellowBright(`MONITOR: Failed with exit code ${code}.`));
-    fin();
-  })
-
-  return cp;
+  fetcher();
 }
 
 const startCompile = async () => {
@@ -258,8 +250,8 @@ const startCompile = async () => {
         fs.unlinkSync(path.join(CWD, 'gmon.out'))
     }
     catch (error) {
-      spinner.fail(chalk.redBright(`File system error.`));
-      process.exit(2);
+      spinner.fail(chalk.redBright(`Error: File system error.`));
+      process.exit(3);
     }
     spinner.text = 'Compiling...';
     const res = child_process.spawn(
@@ -278,7 +270,7 @@ const startCompile = async () => {
       if (err.status) {
         spinner.fail(chalk.redBright(`Error: Compilation error, exit code is ${err.status}.`));
         console.log(trim(errS));
-        process.exit(2);
+        process.exit(3);
       }
       spinner.succeed(chalk.greenBright(`Compilation success.`));
       resolve(true);
@@ -502,7 +494,7 @@ const startCollectProfile = (sf) => {
     process.exit(4);
   }
 
-  spinner.succeed(chalk.greenBright(`Successfully parse the profiling file.`))
+  spinner.succeed(chalk.greenBright(`Profiling file parsed.`))
 
   const _spinner = new ora(`Parsing cover file...`);
 
@@ -523,17 +515,17 @@ const startCollectProfile = (sf) => {
       return [false, '~/' + path.basename(p)];
     }));
   } catch (error) {
-    spinner.fail(chalk.redBright(`Error: Cannot parse cover result.`));
+    spinner.fail(chalk.redBright(`Error: Cannot parse cover file.`));
     console.log(error);
     process.exit(4);
   }
 
-  spinner.succeed(chalk.greenBright(`Successfully parse the cover result.`))
+  spinner.succeed(chalk.greenBright(`Cover file parsed.`))
 
 };
 
 // 开启网页
-const startWebsite = (loc) => {
+const startWebsite = (sendIf, fileLoc) => {
   const spinner = new ora('Launching server...');
   var app = express()
 
@@ -581,15 +573,20 @@ const startWebsite = (loc) => {
     extended: false
   }))
   app.use(bodyParser.json())
-  if (argv.length < 3 || argv[2] !== '-s') {
-    app.listen(CPP_PERF_PORT, function() {
-      spinner.succeed(chalk.greenBright(`You can view result from http://127.0.0.1:${CPP_PERF_PORT}`));
-    })
+  if (!sendIf) {
+    try {
+      app.listen(CPP_PERF_PORT, function() {
+        spinner.succeed(chalk.greenBright(`You can view result from http://127.0.0.1:${CPP_PERF_PORT}`));
+      })
+    }
+    catch (error) {
+      alert(`Error: There is already a local server with port = ${CPP_PERF_PORT}.`)
+    }
   }
   else {
     const formData = {
       field: 'file',
-      file: fs.createReadStream(loc)
+      file: fs.createReadStream(fileLoc)
     }
     request.post({
       url: `http://127.0.0.1:${CPP_PERF_PORT}/set`,
@@ -606,208 +603,210 @@ const startWebsite = (loc) => {
   }
 }
 
-const argv = process.argv.slice(2);
-if (argv.length === 0) {
-  alert(`Error: At least one parameter is needed.\ncpp-perf [init/single/run/serve] ...`);
-}
-
-if (argv[0] === "init") {
-  if (argv.length === 1) {
-    alert(`Error: Cpp-pref file name needed.`);
-  }
-  let f = argv[1];
-  if (path.extname(f) !== ".pfconf")
-    f += ".pfconf";
-  if (fs.existsSync(f) && (argv.length === 2 || argv[2] !== "-f")) {
-    alert(`Error: File already exists. Use -f to force initialize.`);
-  }
-  try {
-    fs.writeFile(f, JSON.stringify(TEMPLATE_CPCONF(), null, "\t"), (err) => {
-      if (err !== null)
-        throw err;
-    });
-    console.log(chalk.greenBright(`✔ Config saved in ${path.resolve(f)}.`))
-  } catch (error) {
-    alert(`Error: File system error.`);
-  }
-}
-else if (argv[0] === "single") {
-  if (argv.length === 1) {
-    alert(`Error: CPP file name needed.`);
-  }
-  let o = argv[1];
-  if (path.extname(o) !== ".cpp")
-    o += ".cpp";
-  let f = path.basename(o, '.cpp');
-  f = path.join(path.dirname(o), f + '.pfconf');
-
-  if (fs.existsSync(f) && (argv.length === 2 || argv[argv.length - 1] !== "-f")) {
-    alert(`Error: Cpp-conf File already exists. Use -f to force-initialize.`);
-  }
-
-  const saveFile = () => {
+program
+  .command('init <name>')
+  .alias('i')
+  .description('write initial configs to a file')
+  .option('-f, --force', 'Force to cover previous config file')
+  .action((f, cmd) => {
+    if (path.extname(f) !== ".pfconf")
+      f += ".pfconf";
+    if (fs.existsSync(f) && !cmd.force) {
+      alert(`Error: Config file already exists. Use -f to force initialize.`);
+    }
     try {
-      fs.writeFile(f, JSON.stringify(TEMPLATE_CPCONF(o), null, "\t"), (err) => {
+      fs.writeFile(f, JSON.stringify(TEMPLATE_CPCONF(), null, "\t"), (err) => {
         if (err !== null)
           throw err;
       });
-      console.log(chalk.greenBright(`✔ Config saved in ${path.resolve(f)}.`))
+      console.log(chalk.greenBright(`✔ Config saved in ${chalk.yellowBright(f)}.`))
     } catch (error) {
-      alert(`Error: File system error.`);
+      alert(`Error: Cannot save the config file.`);
     }
-  }
+  });
+program
+  .command('prepare <file>')
+  .alias('p')
+  .description('prepare a config file for a single file')
+  .option('-f, --force', 'Force to cover previous config file')
+  .option('-i, --input-file <file>', 'Set input data as a file')
+  .action((o, cmd) => {
+    if (path.extname(o) !== ".cpp")
+      o += ".cpp";
+    let f = path.basename(o, '.cpp');
+    f = path.join(path.dirname(o), f + '.pfconf');
 
-  if (argv.length > 2 && (argv.length > 3 || argv[2] !== "-f")) {
-    RUN_TYPE = "file";
-    RUN_STDIN = path.relative(path.dirname(f), argv[2]);
-    saveFile();
-  }
-  else {
-    RUN_TYPE = "pipe";
-    console.log(chalk.cyanBright(`! Please enter the input. Use CTRL+C to stop.`))
-    const rl = readline.createInterface({ "input": process.stdin, "output": process.stdout });
-    rl.setPrompt('');
-    rl.prompt();
-    rl.on('line', (input) => {
-      RUN_STDIN += input + '\n';
-    });
-    rl.on('SIGINT', () => {
-      RUN_STDIN += rl.line;
-      rl.pause();
-      console.log('');
-      console.log(chalk.greenBright(`✔ Input collected.`));
-      saveFile();
-    });
-  }
+    if (fs.existsSync(f) && !cmd.force) {
+      alert(`Error: Config File already exists. Use -f to force-initialize.`);
+    }
 
-}
-else if (argv[0] === "run") {
-  let content = "";
-  if (argv.length === 1) {
-    alert(`Error: Cpp-pref file needed.`);
-  }
-
-  let f = argv[1];
-  if (path.extname(f) !== ".pfconf")
-    f += ".pfconf";
-
-  try {
-    content = fs.readFileSync(f);
-  } catch (error) {
-    alert(`Error: File system error.`);
-  }
-
-  try {
-    content = JSON.parse(content);
-  } catch (error) {
-    alert(`Error: Cannot parse file.`);
-  }
-  if (Object.keys(content.compile.env).length !== 0)
-    COMPILE_ENV = content.compile.env;
-  GCC_OPTIMIZE_FLAGS = content.compile.flags;
-  COMPILE_FILES = content.compile.files;
-  if (COMPILE_FILES.length === 0) {
-    alert(`Error: Compile files should not be empty.`);
-  }
-  if (content.compile.target !== "")
-    COMPILE_TARGET = content.compile.target;
-  if (content.run.timeout > 0)
-    RUN_TIMEOUT = content.run.timeout;
-  if (content.run.interval > 0)
-    RUN_INTERVAL = content.run.interval;
-  RUN_TYPE = content.run.type;
-  RUN_STDIN = content.run.stdin;
-  COLLECT_PROFILE = content.collect.profile;
-  COLLECT_CPU = content.collect.cpu;
-  COLLECT_MEMORY = content.collect.memory;
-  COLLECT_IO = content.collect.io;
-  COLLECT_STDOUT = content.collect.stdout;
-  COLLECT_STDERR = content.collect.stderr;
-  COLLECT_CODES = content.collect.codes;
-  GCC_COMPILE_FLAGS = (
-    COLLECT_PROFILE ?
-    GCC_COMPILE_FLAGS_PROFILE :
-    GCC_COMPILE_FLAGS_NO_PROFILE
-  );
-  SAVE_FILE = content.save.file.replace(/\%t\%/g, (new Date()).format('yyyy-MM-dd-HH-mm-ss'));
-  SAVE_COMPRESS = content.save.compress;
-  SAVE_SERVE = content.save.serve;
-  if (argv.length >= 3) {
-    RUN_ID = argv[2];
-    console.log(chalk.cyanBright(`! ID is set to "${RUN_ID}".`));
-    if (RUN_TYPE === "file")
-      RUN_STDIN = RUN_STDIN.replace(/\%i\%/g, RUN_ID);
-    SAVE_FILE = SAVE_FILE.replace(/\%i\%/g, RUN_ID);
-  }
-  else {
-    if (RUN_TYPE === "file" && RUN_STDIN.indexOf("%i%") !== -1)
-      alert(`❌ Input file needs an ID.`);
-    if (SAVE_FILE.indexOf("%i%") !== -1)
-      alert(`❌ Save file needs an ID.`);
-  }
-
-  CWD = path.dirname(f);
-  SAVE_FILE = path.join(CWD, SAVE_FILE);
-
-  prepareEnvironment();
-  let sf = startCollectCodes();
-  startCompile().then(() => {
-    startRun().then(() => {
-      process.on('SIGINT', () => process.exit(1));
-      if (RETURN_CODE === 0)
-        console.log(chalk.greenBright(`✔ Program exits in ${TIME_TICKS[TIME_TICKS.length - 1].t} ms, with code ${RETURN_CODE}.`))
-      else
-        console.log(chalk.greenBright(`❌ Program exits in ${TIME_TICKS[TIME_TICKS.length - 1].t} ms, with code ${RETURN_CODE}.`))
-
-      if (RETURN_CODE === 0 && COLLECT_PROFILE)
-        startCollectProfile(sf);
-
-      const res = {
-        isCppPerfResult: true
-      };
-      if (COLLECT_PROFILE && RETURN_CODE === 0)
-        res.profile = {
-          "content": PROFILE_ARRAY
-        };
-      res.timeticks = TIME_TICKS;
-      res.codes = CODE_LIBRARY;
-      res.code = RETURN_CODE;
-      res.date = Date.now();
-      res.input = {
-        length: INPUT_LENGTH,
-        snapshot: INPUT_SNAPSHOT.toString()
-      }
-      if (RUN_ID)
-        res.id = RUN_ID;
-      const spinner = new ora('Saving result...')
+    const saveFile = () => {
       try {
-        fs.writeFileSync(SAVE_FILE, JSON.stringify(res, null, SAVE_COMPRESS ? undefined : "\t"));
-        spinner.succeed(`${chalk.greenBright(`Successfully save result to `)}${chalk.yellowBright(path.resolve(SAVE_FILE))}.`);
+        fs.writeFile(f, JSON.stringify(TEMPLATE_CPCONF(o), null, "\t"), (err) => {
+          if (err !== null)
+            throw err;
+        });
+        console.log(chalk.greenBright(`✔ Config saved in ${chalk.yellowBright(f)}.`))
+      } catch (error) {
+        alert(`Error: Cannot save the config file.`);
       }
-      catch (error) {
-        spinner.fail(chalk.redBright(`Failed saving result to ${SAVE_FILE}.`));
-        process.exit(5);
-      }
+    }
+    if (cmd["inputFile"]) {
+      RUN_TYPE = "file";
+      RUN_STDIN = path.relative(path.dirname(f), cmd["inputFile"]);
+      saveFile();
+    }
+    else {
+      RUN_TYPE = "pipe";
+      console.log(chalk.cyanBright(`! Please enter the input. Use CTRL+C to stop.`))
+      const rl = readline.createInterface({ "input": process.stdin, "output": process.stdout });
+      rl.setPrompt('');
+      rl.prompt();
+      rl.on('line', (input) => {
+        RUN_STDIN += input + '\n';
+      });
+      rl.on('SIGINT', () => {
+        RUN_STDIN += rl.line;
+        rl.pause();
+        console.log('');
+        console.log(chalk.greenBright(`✔ Input collected.`));
+        saveFile();
+      });
+    }
+  });
+program
+  .command('run <name>')
+  .alias('r')
+  .description('run a test defined by a config file')
+  .option('-s, --send-to-server', 'Send the result to another local server right after the run')
+  .option('-i, --id <id>', 'ID for this run a.k.a. definition of "%i%"')
+  .action((f, cmd) => {
+    let content = "";
+    if (path.extname(f) !== ".pfconf")
+      f += ".pfconf";
 
-      WEBSITE_OBJ = res;
-      if (SAVE_SERVE)
-        startWebsite();
+    try {
+      content = fs.readFileSync(f);
+    } catch (error) {
+      alert(`Error: Cannot find the config file.`);
+    }
+
+    try {
+      content = JSON.parse(content);
+    } catch (error) {
+      alert(`Error: Cannot parse the config file.`);
+    }
+    if (Object.keys(content.compile.env).length !== 0)
+      COMPILE_ENV = content.compile.env;
+    GCC_OPTIMIZE_FLAGS = content.compile.flags;
+    COMPILE_FILES = abstract(content.compile.files);
+    if (COMPILE_FILES.length === 0) {
+      alert(`Error: Compile file list should not be empty.`);
+    }
+    if (content.compile.target !== "")
+      COMPILE_TARGET = content.compile.target;
+    if (content.run.timeout > 0)
+      RUN_TIMEOUT = content.run.timeout;
+    if (content.run.interval > 0)
+      RUN_INTERVAL = content.run.interval;
+    RUN_TYPE = content.run.type;
+    RUN_STDIN = content.run.stdin;
+    COLLECT_PROFILE = content.collect.profile;
+    COLLECT_CPU = content.collect.cpu;
+    COLLECT_MEMORY = content.collect.memory;
+    COLLECT_IO = content.collect.io;
+    COLLECT_STDOUT = content.collect.stdout;
+    COLLECT_STDERR = content.collect.stderr;
+    COLLECT_CODES = abstract(content.collect.codes);
+    GCC_COMPILE_FLAGS = (
+      COLLECT_PROFILE ?
+      GCC_COMPILE_FLAGS_PROFILE :
+      GCC_COMPILE_FLAGS_NO_PROFILE
+    );
+    SAVE_FILE = content.save.file.replace(/\%t\%/g, (new Date()).format('yyyy-MM-dd-HH-mm-ss'));
+    SAVE_COMPRESS = content.save.compress;
+    SAVE_SERVE = content.save.serve;
+    if (cmd.id) {
+      RUN_ID = cmd.id;
+      console.log(chalk.cyanBright(`! ID is set to "${RUN_ID}".`));
+      if (RUN_TYPE === "file")
+        RUN_STDIN = RUN_STDIN.replace(/\%i\%/g, RUN_ID);
+      SAVE_FILE = SAVE_FILE.replace(/\%i\%/g, RUN_ID);
+    }
+    else {
+      if (RUN_TYPE === "file" && RUN_STDIN.indexOf("%i%") !== -1)
+        alert(`❌ Input file needs an ID.`);
+      if (SAVE_FILE.indexOf("%i%") !== -1)
+        alert(`❌ Save file needs an ID.`);
+    }
+
+    CWD = path.dirname(f);
+    SAVE_FILE = path.join(CWD, SAVE_FILE);
+
+    prepareEnvironment();
+    let sf = startCollectCodes();
+    startCompile().then(() => {
+      startRun().then(() => {
+        process.on('SIGINT', () => process.exit(1));
+        if (RETURN_CODE === 0)
+          console.log(chalk.greenBright(`✔ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with code ${RETURN_CODE}.`))
+        else
+          console.log(chalk.greenBright(`❌ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with code ${RETURN_CODE}.`))
+
+        if (RETURN_CODE === 0 && COLLECT_PROFILE)
+          startCollectProfile(sf);
+
+        const res = {
+          isCppPerfResult: true
+        };
+        if (COLLECT_PROFILE && RETURN_CODE === 0)
+          res.profile = {
+            "content": PROFILE_ARRAY
+          };
+        res.timeticks = TIME_TICKS;
+        res.codes = CODE_LIBRARY;
+        res.code = RETURN_CODE;
+        res.date = Date.now();
+        res.input = {
+          length: INPUT_LENGTH,
+          snapshot: INPUT_SNAPSHOT.toString()
+        }
+        if (RUN_ID)
+          res.id = RUN_ID;
+        const spinner = new ora('Saving result...')
+        try {
+          fs.writeFileSync(SAVE_FILE, JSON.stringify(res, null, SAVE_COMPRESS ? undefined : "\t"));
+          spinner.succeed(`${chalk.greenBright(`Successfully save result to `)}${chalk.yellowBright(SAVE_FILE)}.`);
+        }
+        catch (error) {
+          spinner.fail(chalk.redBright(`Failed saving result to ${SAVE_FILE}.`));
+          process.exit(5);
+        }
+
+        WEBSITE_OBJ = res;
+        if (SAVE_SERVE)
+          startWebsite(cmd["sendToServer"], SAVE_FILE);
+      })
     })
   })
-
-} else if (argv[0] === "serve") {
-  let loc = "";
-  if (argv.length >= 2) {
-    loc = argv[1];
-    try {
-      if (path.extname(loc) !== ".pfrs")
-        loc += ".pfrs";
-      WEBSITE_OBJ = JSON.parse(fs.readFileSync(loc));
-    } catch (error) {
-      alert(`Error: Cannot load ${loc}.`);
+program
+  .command('serve [file]')
+  .alias('s')
+  .description('start a local server to display the result')
+  .option('-s, --send-to-server', 'Send the file to another local server')
+  .action((loc, cmd) => {
+    if (loc) {
+      try {
+        if (path.extname(loc) !== ".pfrs")
+          loc += ".pfrs";
+        WEBSITE_OBJ = JSON.parse(fs.readFileSync(loc));
+      } catch (error) {
+        alert(`Error: Cannot load ${loc}.`);
+      }
     }
-  }
-  startWebsite(loc);
-} else {
-  alert(`Error: Unknown command: ${argv[0]}.\ncpp-perf [init/single/run/serve] ...`);
-}
+    if (cmd["sendToServer"] && !loc) {
+      alert(`Error: A file is needed to be sent.`)
+    }
+    startWebsite(cmd["sendToServer"], loc);
+  })
+program.parse(process.argv);
