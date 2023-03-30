@@ -504,79 +504,91 @@ const startCollectProfile = (sf) => {
 
 // 开启网页
 const startWebsite = (sendIf, fileLoc) => {
-  const spinner = new ora('Launching server...');
-  var app = express()
+  return new Promise ((resolve) => {
 
-  app.use(bodyParser.urlencoded({ extended: false }))
-  app.use(bodyParser.json())
-  app.use(express.static(path.join(__dirnameNew, 'public')))
+    if (!sendIf) {
+      const spinner = new ora('Launching server...');
+      var app = express()
 
-  app.get('/get', (req, res) => {
-    res.json(WEBSITE_OBJ);
-  })
+      app.use(bodyParser.urlencoded({ extended: false }))
+      app.use(bodyParser.json())
+      app.use(express.static(path.join(__dirnameNew, 'public')))
 
-  app.post('/set', (req, res) => {
-    try {
-      const form = formidable({ multiples: false });
-      form.parse(req, (err, fields, files) => {
+      app.get('/get', (req, res) => {
+        res.json(WEBSITE_OBJ);
+      })
+
+      app.post('/set', (req, res) => {
+        try {
+          const form = formidable({ multiples: false });
+          form.parse(req, (err, fields, files) => {
+            if (err) {
+              next(err);
+              return;
+            }
+            let p = files.file;
+            let loc = p.filepath;
+            let content = fs.readFileSync(loc);
+            content = JSON.parse(content);
+            if (! content.isCppPerfResult) {
+              throw 'FILE_FORMAT_ERROR';
+              return;
+            }
+            fs.unlinkSync(loc);
+            WEBSITE_OBJ = content;
+            console.log(chalk.cyanBright(`! Server: Content changed.`));
+            res.json({
+              type: "success",
+              data: content
+            });
+          });
+        } catch (error) {
+          console.log(chalk.redBright(`Server: Cannot load data from POST.`));
+          res.json({
+            type: "failed"
+          });
+        }
+      })
+
+      app.use(bodyParser.urlencoded({
+        extended: false
+      }))
+      app.use(bodyParser.json())
+      app.listen(CPP_PERF_PORT, function(err) {
         if (err) {
-          next(err);
-          return;
+          alert(`Error: There is already a local server with port = ${CPP_PERF_PORT}.`)
         }
-        let p = files.file;
-        let loc = p.filepath;
-        let content = fs.readFileSync(loc);
-        content = JSON.parse(content);
-        if (! content.isCppPerfResult) {
-          throw 'FILE_FORMAT_ERROR';
-          return;
-        }
-        fs.unlinkSync(loc);
-        WEBSITE_OBJ = content;
-        console.log(chalk.cyanBright(`! Server: Content changed.`));
-        res.json({
-          type: "success",
-          data: content
-        });
-      });
-    } catch (error) {
-      console.log(chalk.redBright(`Server: Cannot load data from POST.`));
-      res.json({
-        type: "failed"
-      });
+        spinner.succeed(chalk.greenBright(`You can view result from http://127.0.0.1:${CPP_PERF_PORT}`));
+        process.on('SIGINT', () => app.close());
+        app.on('close', () => { resolve(); })
+      })
+    }
+    else {
+      const formData = {
+        field: 'file',
+        file: fs.createReadStream(fileLoc)
+      }
+      try {
+        request.post({
+          url: `http://127.0.0.1:${CPP_PERF_PORT}/set`,
+          formData: formData
+        }, (err, res) => {
+          if (err)
+            console.log(chalk.redBright(`❌ POST error: ${err.message}.`))
+          else if (res.type === "failed")
+            console.log(chalk.redBright(`❌ POST error.`))
+          else {
+            console.log(chalk.greenBright('✔ POST success.'))
+          }
+          resolve();
+        })
+      }
+      catch (error) {
+        console.log(chalk.redBright(`❌ POST error: ${err.message}.`));
+        resolve();
+      }
     }
   })
-
-  app.use(bodyParser.urlencoded({
-    extended: false
-  }))
-  app.use(bodyParser.json())
-  if (!sendIf) {
-    app.listen(CPP_PERF_PORT, function(err) {
-      if (err) {
-        alert(`Error: There is already a local server with port = ${CPP_PERF_PORT}.`)
-      }
-      spinner.succeed(chalk.greenBright(`You can view result from http://127.0.0.1:${CPP_PERF_PORT}`));
-    })
-  }
-  else {
-    const formData = {
-      field: 'file',
-      file: fs.createReadStream(fileLoc)
-    }
-    request.post({
-      url: `http://127.0.0.1:${CPP_PERF_PORT}/set`,
-      formData: formData
-    }, (err, res) => {
-      if (err)
-        console.log(chalk.redBright(`❌ POST error: ${err.message}.`))
-      else if (res.type === "failed")
-        console.log(chalk.redBright(`❌ POST error.`))
-      else {
-        console.log(chalk.greenBright('✔ POST success.'))
-      }
-    })
-  }
 }
 
 program
@@ -725,9 +737,9 @@ program
     await startRun()
     process.on('SIGINT', () => process.exit(1));
     if (RETURN_CODE === 0)
-      console.log(chalk.greenBright(`✔ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with code ${RETURN_CODE}.`))
+      console.log(chalk.greenBright(`✔ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with exit code ${RETURN_CODE}.`))
     else
-      console.log(chalk.greenBright(`❌ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with code ${RETURN_CODE}.`))
+      console.log(chalk.greenBright(`❌ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with exit code ${RETURN_CODE}.`))
 
     if (RETURN_CODE === 0 && COLLECT_PROFILE)
       await startCollectProfile(sf);
@@ -761,14 +773,14 @@ program
 
     WEBSITE_OBJ = res;
     if (SAVE_SERVE)
-      startWebsite(cmd["sendToServer"], SAVE_FILE);
+      await startWebsite(cmd["sendToServer"], SAVE_FILE);
   })
 program
   .command('serve [file]')
   .alias('s')
   .description('start a local server to display the result')
   .option('-s, --send-to-server', 'Send the file to another local server')
-  .action((loc, cmd) => {
+  .action( async (loc, cmd) => {
     if (loc) {
       try {
         if (path.extname(loc) !== ".pfrs")
@@ -781,6 +793,6 @@ program
     if (cmd["sendToServer"] && !loc) {
       alert(`Error: A file is needed to be sent.`)
     }
-    startWebsite(cmd["sendToServer"], loc);
+    await startWebsite(cmd["sendToServer"], loc);
   })
 program.parse(process.argv);
