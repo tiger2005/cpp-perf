@@ -288,7 +288,7 @@ const startRun = () => {
     INPUT_LENGTH = INPUT_SNAPSHOT.length;
     INPUT_SNAPSHOT = INPUT_SNAPSHOT.slice(0, MAX_INPUT_SNAPSHOT_LENGTH);
     cp = child_process.spawn(
-      COMPILE_TARGET,
+      (process.platform == "linux" ? "./" : "") + COMPILE_TARGET,
       [], {
         cwd: CWD,
         timeout: RUN_TIMEOUT
@@ -316,7 +316,7 @@ const startRun = () => {
       alert(`Error: Input file ${RUN_STDIN} not found.`);
     }
     cp = child_process.spawn(
-      COMPILE_TARGET,
+      (process.platform == "linux" ? "./" : "") + COMPILE_TARGET,
       [], {
         cwd: CWD,
         timeout: RUN_TIMEOUT,

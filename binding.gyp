@@ -1,9 +1,9 @@
 {
   "targets": [
     {
-      "target_name": "perf_win32",
+      "target_name": "perf_linux",
       "sources": [
-        "./addon/perf_win32.cpp"
+        "./addon/perf_linux.cpp"
       ],
       'defines': [ 'NAPI_DISABLE_CPP_EXCEPTIONS' ],
       "include_dirs": [
