@@ -151,7 +151,6 @@ const abstract = (arr) => {
 
 // 监测程序的引用
 const require = createRequire(import.meta.url);
-// const content = require('./addon/perf_win32.node')
 let MONITOR_REQUIRE = {};
 
 // 准备环境
@@ -574,14 +573,12 @@ const startWebsite = (sendIf, fileLoc) => {
   }))
   app.use(bodyParser.json())
   if (!sendIf) {
-    try {
-      app.listen(CPP_PERF_PORT, function() {
-        spinner.succeed(chalk.greenBright(`You can view result from http://127.0.0.1:${CPP_PERF_PORT}`));
-      })
-    }
-    catch (error) {
-      alert(`Error: There is already a local server with port = ${CPP_PERF_PORT}.`)
-    }
+    app.listen(CPP_PERF_PORT, function(err) {
+      if (err) {
+        alert(`Error: There is already a local server with port = ${CPP_PERF_PORT}.`)
+      }
+      spinner.succeed(chalk.greenBright(`You can view result from http://127.0.0.1:${CPP_PERF_PORT}`));
+    })
   }
   else {
     const formData = {
@@ -592,10 +589,10 @@ const startWebsite = (sendIf, fileLoc) => {
       url: `http://127.0.0.1:${CPP_PERF_PORT}/set`,
       formData: formData
     }, (err, res) => {
-      if (err || res.type === "failed") {
-        console.log(chalk.redBright('❌ POST error.'))
-        throw err;
-      }
+      if (err)
+        console.log(chalk.redBright(`❌ POST error: ${err.message}.`))
+      else if (res.type === "failed")
+        console.log(chalk.redBright(`❌ POST error.`))
       else {
         console.log(chalk.greenBright('✔ POST success.'))
       }
@@ -776,7 +773,7 @@ program
         const spinner = new ora('Saving result...')
         try {
           fs.writeFileSync(SAVE_FILE, JSON.stringify(res, null, SAVE_COMPRESS ? undefined : "\t"));
-          spinner.succeed(`${chalk.greenBright(`Successfully save result to `)}${chalk.yellowBright(SAVE_FILE)}.`);
+          spinner.succeed(`${chalk.greenBright(`Result saved in `)}${chalk.yellowBright(SAVE_FILE)}.`);
         }
         catch (error) {
           spinner.fail(chalk.redBright(`Failed saving result to ${SAVE_FILE}.`));
