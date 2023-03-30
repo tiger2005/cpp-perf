@@ -402,125 +402,99 @@ const startCollectCodes = () => {
 // 5: gcov xxx.exe -t -r -i -m
 // convert: 根据收集的文件集合判断是否启用路径映射
 const startCollectProfile = (sf) => {
-  const spinner = new ora('Parsing profiling file... (1 / 4)').start();
-  try {
-    const content = child_process.spawnSync(
-      'gprof',
-      [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-p', '-L'], {
-        cwd: CWD,
-        env: COMPILE_ENV
-      }
-    );
-    if (content.status) {
-      spinner.fail(chalk.redBright(`Error: gprof returns with exit code ${content.status}.`));
+  const runSubprocess = (name, argv, handler, cb, convert = () => {}, errMsg = "Error: Cannot parse the result from gmon.out.") => {
+    try {
+      const content = child_process.spawn(
+        name, argv, {
+          cwd: CWD,
+          env: COMPILE_ENV
+        }
+      );
+      let stdo = "";
+      content.stdout.on('data', data => { stdo += data.toString('hex') })
+      content.on('close', (err) => {
+        if (err) {
+          spinner.fail(chalk.redBright(`Error: gprof returns with exit code ${err}.`));
+          process.exit(4);
+        }
+        PROFILE_ARRAY.push(handler(iconv.decode(Buffer.from(stdo, 'hex'), CMD_ENCODE_RULE), convert));
+        cb();
+      })
+    } catch (error) {
+      spinner.fail(chalk.redBright(errMsg));
+      console.log(error);
       process.exit(4);
     }
-    PROFILE_ARRAY.push(readFlatNormal(iconv.decode(content.stdout, CMD_ENCODE_RULE)));
-  } catch (error) {
-    spinner.fail(chalk.redBright(`Error: Cannot parse the result from gmon.out.`));
-    console.log(error);
-    process.exit(4);
   }
-
-  spinner.text = 'Parsing profiling file... (2 / 4)'
-  try {
-    const content = child_process.spawnSync(
+  return new Promise((resolve) => {
+    const spinner = new ora('Parsing profiling file... (1 / 4)').start();
+    // process 1
+    runSubprocess(
       'gprof',
-      [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-p', '-l', '-L'], {
-        cwd: CWD,
-        env: COMPILE_ENV
+      [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-p', '-L'], 
+      readFlatNormal,
+      () => {
+        spinner.text = 'Parsing profiling file... (2 / 4)'
+        // process 2
+        runSubprocess(
+          'gprof',
+          [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-p', '-l', '-L'], 
+          readFlatLine,
+          () => {
+            spinner.text = 'Parsing profiling file... (3 / 4)'
+            // process 3
+            runSubprocess(
+              'gprof',
+              [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-q', '-L'], 
+              readGraphNormal,
+              () => {
+                // process 4
+                spinner.text = 'Parsing profiling file... (4 / 4)'
+                runSubprocess(
+                  'gprof',
+                  [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-q', '-l', '-L'], 
+                  readGraphLine,
+                  () => {
+                    spinner.succeed(chalk.greenBright(`Profiling file parsed.`))
+                    const _spinner = new ora(`Parsing cover file...`);
+                    // process 5
+                    runSubprocess(
+                      'gcov',
+                      [COMPILE_TARGET, '-t', '-r', '-i', '-m'], 
+                      readCoverJSON,
+                      () => {
+                        _spinner.succeed(chalk.greenBright(`Cover file parsed.`))
+                        resolve()
+                      },
+                      (p) => {
+                        p = path.resolve(path.join(CWD, p));
+                        if (sf.indexOf(p) !== -1)
+                          return [true, path.relative(CWD, p)];
+                        return [false, '~/' + path.basename(p)];
+                      },
+                      'Error: Cannot parse cover file'
+                    )
+                  },
+                  (p) => {
+                    p = path.normalize(p);
+                    if (sf.indexOf(p) !== -1)
+                      return [true, path.relative(CWD, p)];
+                    return [false, '~/' + path.basename(p)];
+                  }
+                )
+              }
+            )
+          },
+          (p) => {
+            p = path.normalize(p);
+            if (sf.indexOf(p) !== -1)
+              return [true, path.relative(CWD, p)];
+            return [false, '~/' + path.basename(p)];
+          }
+        )
       }
-    );
-    if (content.status) {
-      alert(`Error: gprof returns with exit code ${content.status}.`);
-      console.log(content);
-      process.exit(4);
-    }
-    PROFILE_ARRAY.push(readFlatLine(iconv.decode(content.stdout, CMD_ENCODE_RULE), (p) => {
-      p = path.normalize(p);
-      if (sf.indexOf(p) !== -1)
-        return [true, path.relative(CWD, p)];
-      return [false, '~/' + path.basename(p)];
-    }));
-  } catch (error) {
-    spinner.fail(chalk.redBright(`Error: Cannot parse the result from gmon.out.`));
-    console.log(error);
-    process.exit(4);
-  }
-
-  spinner.text = 'Parsing profiling file... (3 / 4)'
-
-  try {
-    const content = child_process.spawnSync(
-      'gprof',
-      [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-q', '-L'], {
-        cwd: CWD,
-        env: COMPILE_ENV
-      }
-    );
-    if (content.status) {
-      spinner.fail(chalk.redBright(`Error: gprof returns with exit code ${content.status}.`));
-      process.exit(4);
-    }
-    PROFILE_ARRAY.push(readGraphNormal(iconv.decode(content.stdout, CMD_ENCODE_RULE)));
-  } catch (error) {
-    spinner.fail(chalk.redBright(`Error: Cannot parse the result from gmon.out.`));
-    console.log(error);
-    process.exit(4);
-  }
-
-  spinner.text = 'Parsing profiling file... (4 / 4)'
-
-  try {
-    const content = child_process.spawnSync(
-      'gprof',
-      [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-q', '-l', '-L'], {
-        cwd: CWD,
-        env: COMPILE_ENV
-      }
-    );
-    if (content.status)
-      alert(`Error: gprof returns with exit code ${content.status}.`);
-    PROFILE_ARRAY.push(readGraphLine(iconv.decode(content.stdout, CMD_ENCODE_RULE), (p) => {
-      p = path.normalize(p);
-      if (sf.indexOf(p) !== -1)
-        return [true, path.relative(CWD, p)];
-      return [false, '~/' + path.basename(p)];
-    }));
-  } catch (error) {
-    spinner.fail(chalk.redBright(`Error: Cannot parse the result from gmon.out.`));
-    console.log(error);
-    process.exit(4);
-  }
-
-  spinner.succeed(chalk.greenBright(`Profiling file parsed.`))
-
-  const _spinner = new ora(`Parsing cover file...`);
-
-  try {
-    const content = child_process.spawnSync(
-      'gcov',
-      [COMPILE_TARGET, '-t', '-r', '-i', '-m'], {
-        cwd: CWD,
-        env: COMPILE_ENV
-      }
-    );
-    if (content.status)
-      alert(`Error: gcov returns with exit code ${content.status}.`);
-    PROFILE_ARRAY.push(readCoverJSON(iconv.decode(content.stdout, CMD_ENCODE_RULE), (p) => {
-      p = path.resolve(path.join(CWD, p));
-      if (sf.indexOf(p) !== -1)
-        return [true, path.relative(CWD, p)];
-      return [false, '~/' + path.basename(p)];
-    }));
-  } catch (error) {
-    spinner.fail(chalk.redBright(`Error: Cannot parse cover file.`));
-    console.log(error);
-    process.exit(4);
-  }
-
-  spinner.succeed(chalk.greenBright(`Cover file parsed.`))
-
+    )
+  })
 };
 
 // 开启网页
@@ -677,7 +651,7 @@ program
   .description('run a test defined by a config file')
   .option('-s, --send-to-server', 'Send the result to another local server right after the run')
   .option('-i, --id <id>', 'ID for this run a.k.a. definition of "%i%"')
-  .action((f, cmd) => {
+  .action( async (f, cmd) => {
     let content = "";
     if (path.extname(f) !== ".pfconf")
       f += ".pfconf";
@@ -742,49 +716,47 @@ program
 
     prepareEnvironment();
     let sf = startCollectCodes();
-    startCompile().then(() => {
-      startRun().then(() => {
-        process.on('SIGINT', () => process.exit(1));
-        if (RETURN_CODE === 0)
-          console.log(chalk.greenBright(`✔ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with code ${RETURN_CODE}.`))
-        else
-          console.log(chalk.greenBright(`❌ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with code ${RETURN_CODE}.`))
+    await startCompile();
+    await startRun()
+    process.on('SIGINT', () => process.exit(1));
+    if (RETURN_CODE === 0)
+      console.log(chalk.greenBright(`✔ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with code ${RETURN_CODE}.`))
+    else
+      console.log(chalk.greenBright(`❌ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with code ${RETURN_CODE}.`))
 
-        if (RETURN_CODE === 0 && COLLECT_PROFILE)
-          startCollectProfile(sf);
+    if (RETURN_CODE === 0 && COLLECT_PROFILE)
+      await startCollectProfile(sf);
 
-        const res = {
-          isCppPerfResult: true
-        };
-        if (COLLECT_PROFILE && RETURN_CODE === 0)
-          res.profile = {
-            "content": PROFILE_ARRAY
-          };
-        res.timeticks = TIME_TICKS;
-        res.codes = CODE_LIBRARY;
-        res.code = RETURN_CODE;
-        res.date = Date.now();
-        res.input = {
-          length: INPUT_LENGTH,
-          snapshot: INPUT_SNAPSHOT.toString()
-        }
-        if (RUN_ID)
-          res.id = RUN_ID;
-        const spinner = new ora('Saving result...')
-        try {
-          fs.writeFileSync(SAVE_FILE, JSON.stringify(res, null, SAVE_COMPRESS ? undefined : "\t"));
-          spinner.succeed(`${chalk.greenBright(`Result saved in `)}${chalk.yellowBright(SAVE_FILE)}.`);
-        }
-        catch (error) {
-          spinner.fail(chalk.redBright(`Failed saving result to ${SAVE_FILE}.`));
-          process.exit(5);
-        }
+    const res = {
+      isCppPerfResult: true
+    };
+    if (COLLECT_PROFILE && RETURN_CODE === 0)
+      res.profile = {
+        "content": PROFILE_ARRAY
+      };
+    res.timeticks = TIME_TICKS;
+    res.codes = CODE_LIBRARY;
+    res.code = RETURN_CODE;
+    res.date = Date.now();
+    res.input = {
+      length: INPUT_LENGTH,
+      snapshot: INPUT_SNAPSHOT.toString()
+    }
+    if (RUN_ID)
+      res.id = RUN_ID;
+    const spinner = new ora('Saving result...')
+    try {
+      fs.writeFileSync(SAVE_FILE, JSON.stringify(res, null, SAVE_COMPRESS ? undefined : "\t"));
+      spinner.succeed(`${chalk.greenBright(`Result saved in `)}${chalk.yellowBright(SAVE_FILE)}.`);
+    }
+    catch (error) {
+      spinner.fail(chalk.redBright(`Failed saving result to ${SAVE_FILE}.`));
+      process.exit(5);
+    }
 
-        WEBSITE_OBJ = res;
-        if (SAVE_SERVE)
-          startWebsite(cmd["sendToServer"], SAVE_FILE);
-      })
-    })
+    WEBSITE_OBJ = res;
+    if (SAVE_SERVE)
+      startWebsite(cmd["sendToServer"], SAVE_FILE);
   })
 program
   .command('serve [file]')
