@@ -402,7 +402,7 @@ const startCollectCodes = () => {
 // 5: gcov xxx.exe -t -r -i -m
 // convert: 根据收集的文件集合判断是否启用路径映射
 const startCollectProfile = (sf) => {
-  const runSubprocess = (name, argv, handler, cb, convert = () => {}, errMsg = "Error: Cannot parse the result from gmon.out.") => {
+  const runSubprocess = (name, argv, handler, spinner, cb, convert = () => {}, errMsg = "Error: Cannot parse the result from gmon.out.") => {
     try {
       const content = child_process.spawn(
         name, argv, {
@@ -433,6 +433,7 @@ const startCollectProfile = (sf) => {
       'gprof',
       [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-p', '-L'], 
       readFlatNormal,
+      spinner,
       () => {
         spinner.text = 'Parsing profiling file... (2 / 4)'
         // process 2
@@ -440,6 +441,7 @@ const startCollectProfile = (sf) => {
           'gprof',
           [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-p', '-l', '-L'], 
           readFlatLine,
+          spinner,
           () => {
             spinner.text = 'Parsing profiling file... (3 / 4)'
             // process 3
@@ -447,6 +449,7 @@ const startCollectProfile = (sf) => {
               'gprof',
               [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-q', '-L'], 
               readGraphNormal,
+              spinner,
               () => {
                 // process 4
                 spinner.text = 'Parsing profiling file... (4 / 4)'
@@ -454,6 +457,7 @@ const startCollectProfile = (sf) => {
                   'gprof',
                   [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-q', '-l', '-L'], 
                   readGraphLine,
+                  spinner,
                   () => {
                     spinner.succeed(chalk.greenBright(`Profiling file parsed.`))
                     const _spinner = new ora(`Parsing cover file...`);
@@ -462,6 +466,7 @@ const startCollectProfile = (sf) => {
                       'gcov',
                       [COMPILE_TARGET, '-t', '-r', '-i', '-m'], 
                       readCoverJSON,
+                      _spinner,
                       () => {
                         _spinner.succeed(chalk.greenBright(`Cover file parsed.`))
                         resolve()
