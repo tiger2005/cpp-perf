@@ -147,6 +147,11 @@ const abstract = (arr) => {
   return ret;
 }
 
+// 程序休眠
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // 监测程序的引用
 const require = createRequire(import.meta.url);
 let MONITOR_REQUIRE = {};
@@ -552,11 +557,12 @@ const startWebsite = (sendIf, fileLoc) => {
         extended: false
       }))
       app.use(bodyParser.json())
-      var server = app.listen(CPP_PERF_PORT, function(err) {
+      var server = app.listen(CPP_PERF_PORT, async function(err) {
         if (err) {
           alert(`Error: There is already a local server with port = ${CPP_PERF_PORT}.`)
         }
         spinner.succeed(chalk.greenBright(`You can view result from http://127.0.0.1:${CPP_PERF_PORT}`));
+        await sleep(1);
         process.on('SIGINT', () => server.close());
         app.on('close', () => { resolve(); })
       })
@@ -733,7 +739,7 @@ program
     let sf = startCollectCodes();
     await startCompile();
     await startRun()
-    process.on('SIGINT', () => process.exit(1));
+    // process.on('SIGINT', () => process.exit(1));
     if (RETURN_CODE === 0)
       console.log(chalk.greenBright(`✔ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with exit code ${RETURN_CODE}.`))
     else

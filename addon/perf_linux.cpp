@@ -189,10 +189,10 @@ Napi::Value GetIOBytes(const Napi::CallbackInfo& _info) {
     char name[64];
     int vmrss = 0;
 
+    for (int i = 0; i < 4; i++) fgets(line_buff, sizeof(line_buff), fd);
     fgets(line_buff, sizeof(line_buff), fd);
     sscanf(line_buff, "%s %d", name, &vmrss);
     float readByte = vmrss;
-    for (int i = 0; i < 4; i++) fgets(line_buff, sizeof(line_buff), fd);
     fgets(line_buff, sizeof(line_buff), fd);
     sscanf(line_buff, "%s %d", name, &vmrss);
     float writeByte = vmrss;
