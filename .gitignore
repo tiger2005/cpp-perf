@@ -3,3 +3,6 @@ node_modules/
 test/
 build/
 binding.gyp
+*.pfconf
+main*
+gmon.out

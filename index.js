@@ -147,13 +147,19 @@ const abstract = (arr) => {
   return ret;
 }
 
+// 程序休眠
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 const executableFileFormat = (str) => {
   if (process.platform === "win32") {
     if (path.extname(str) === ".exe")
       return str;
     return str + ".exe";
   }
-  return path.join('.', str);
+  if (process.platform === "linux") 
+    return "./" + path.normalize(str);
 }
 
 // 监测程序的引用
@@ -235,7 +241,7 @@ const monitorPID = (pid, interval, cb, fin) => {
       if (error.message === "PID_NOT_FOUND")
         spinner.succeed(chalk.greenBright(`MONITOR: Finished, ${cnt} data(s) collected.`));
       else
-        spinner.fail(chalk.redBright(`MONITOR: Aborted, ${cnt} data(s) collected. error = ${err.message}`));
+        spinner.fail(chalk.redBright(`MONITOR: Aborted, ${cnt} data(s) collected. error = ${error.message}`));
       fin();
     }
   }
@@ -405,8 +411,8 @@ const startCollectCodes = () => {
 }
 
 // 收集信息文件
-// 1-4: gprof xxx.exe gmon.out -b -p/-q -L -l?
-// 5: gcov xxx.exe -t -r -i -m
+// 1-4: gprof xxx gmon.out -b -p/-q -L -l?
+// 5: gcov xxx -t -r -i -m
 // convert: 根据收集的文件集合判断是否启用路径映射
 const startCollectProfile = (sf) => {
   const runSubprocess = (name, argv, handler, spinner, cb, convert = () => {}, errMsg = "Error: Cannot parse the result from gmon.out.") => {
@@ -562,8 +568,9 @@ const startWebsite = (sendIf, fileLoc) => {
       }))
       app.use(bodyParser.json())
       const serv = app.listen(CPP_PERF_PORT)
-      serv.on('listening', () => {
+      serv.on('listening', async () => {
         spinner.succeed(chalk.greenBright(`You can view result from http://127.0.0.1:${CPP_PERF_PORT}`));
+        await sleep(1);
         process.on('SIGINT', () => serv.close());
       })
       serv.on('close', () => { resolve(); })
@@ -743,7 +750,7 @@ program
     let sf = startCollectCodes();
     await startCompile();
     await startRun()
-    process.on('SIGINT', () => process.exit(1));
+    // process.on('SIGINT', () => process.exit(1));
     if (RETURN_CODE === 0)
       console.log(chalk.greenBright(`✔ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with exit code ${RETURN_CODE}.`))
     else
