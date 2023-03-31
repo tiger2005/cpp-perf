@@ -153,9 +153,12 @@ function sleep(ms) {
 }
 
 const executableFileFormat = (str) => {
-  if (process.platform === "win32")
+  if (process.platform === "win32") {
+    if (path.extname(str) === ".exe")
+      return str;
     return str + ".exe";
-  if (process.platform === "linux")
+  }
+  if (process.platform === "linux") 
     return "./" + str;
 }
 
