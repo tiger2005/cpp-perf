@@ -152,6 +152,13 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+const executableFileFormat = (str) => {
+  if (process.platform === "win32")
+    return str + ".exe";
+  if (process.platform === "linux")
+    return "./" + str;
+}
+
 // 监测程序的引用
 const require = createRequire(import.meta.url);
 let MONITOR_REQUIRE = {};
@@ -231,7 +238,7 @@ const monitorPID = (pid, interval, cb, fin) => {
       if (error.message === "PID_NOT_FOUND")
         spinner.succeed(chalk.greenBright(`MONITOR: Finished, ${cnt} data(s) collected.`));
       else
-        spinner.fail(chalk.redBright(`MONITOR: Aborted, ${cnt} data(s) collected.`));
+        spinner.fail(chalk.redBright(`MONITOR: Aborted, ${cnt} data(s) collected. error = ${error.message}`));
       fin();
     }
   }
@@ -260,7 +267,7 @@ const startCompile = async () => {
       'g++',
       abstract([...COMPILE_FILES
         , '-o'
-        , COMPILE_TARGET
+        , executableFileFormat(COMPILE_TARGET)
         , ...((GCC_COMPILE_FLAGS + ' ' + GCC_OPTIMIZE_FLAGS).split(' '))]), {
         env: COMPILE_ENV,
         cwd: CWD,
@@ -291,7 +298,7 @@ const startRun = () => {
     INPUT_LENGTH = INPUT_SNAPSHOT.length;
     INPUT_SNAPSHOT = INPUT_SNAPSHOT.slice(0, MAX_INPUT_SNAPSHOT_LENGTH);
     cp = child_process.spawn(
-      (process.platform == "linux" ? "./" : "") + COMPILE_TARGET,
+      executableFileFormat(COMPILE_TARGET),
       [], {
         cwd: CWD,
         timeout: RUN_TIMEOUT
@@ -319,7 +326,7 @@ const startRun = () => {
       alert(`Error: Input file ${RUN_STDIN} not found.`);
     }
     cp = child_process.spawn(
-      (process.platform == "linux" ? "./" : "") + COMPILE_TARGET,
+      executableFileFormat(COMPILE_TARGET),
       [], {
         cwd: CWD,
         timeout: RUN_TIMEOUT,
@@ -434,7 +441,7 @@ const startCollectProfile = (sf) => {
     // process 1
     runSubprocess(
       'gprof',
-      [COMPILE_TARGET, 'gmon.out', '-b', '-p', '-L'], 
+      [executableFileFormat(COMPILE_TARGET), 'gmon.out', '-b', '-p', '-L'], 
       readFlatNormal,
       spinner,
       () => {
@@ -442,7 +449,7 @@ const startCollectProfile = (sf) => {
         // process 2
         runSubprocess(
           'gprof',
-          [COMPILE_TARGET, 'gmon.out', '-b', '-p', '-l', '-L'], 
+          [executableFileFormat(COMPILE_TARGET), 'gmon.out', '-b', '-p', '-l', '-L'], 
           readFlatLine,
           spinner,
           () => {
@@ -450,7 +457,7 @@ const startCollectProfile = (sf) => {
             // process 3
             runSubprocess(
               'gprof',
-              [COMPILE_TARGET, 'gmon.out', '-b', '-q', '-L'], 
+              [executableFileFormat(COMPILE_TARGET), 'gmon.out', '-b', '-q', '-L'], 
               readGraphNormal,
               spinner,
               () => {
@@ -458,7 +465,7 @@ const startCollectProfile = (sf) => {
                 spinner.text = 'Parsing profiling file... (4 / 4)'
                 runSubprocess(
                   'gprof',
-                  [COMPILE_TARGET, 'gmon.out', '-b', '-q', '-l', '-L'], 
+                  [executableFileFormat(COMPILE_TARGET), 'gmon.out', '-b', '-q', '-l', '-L'], 
                   readGraphLine,
                   spinner,
                   () => {
@@ -467,7 +474,7 @@ const startCollectProfile = (sf) => {
                     // process 5
                     runSubprocess(
                       'gcov',
-                      [COMPILE_TARGET, '-t', '-r', '-i', '-m'], 
+                      [executableFileFormat(COMPILE_TARGET), '-t', '-r', '-i', '-m'], 
                       readCoverJSON,
                       _spinner,
                       () => {
@@ -557,14 +564,15 @@ const startWebsite = (sendIf, fileLoc) => {
         extended: false
       }))
       app.use(bodyParser.json())
-      var server = app.listen(CPP_PERF_PORT, async function(err) {
-        if (err) {
-          alert(`Error: There is already a local server with port = ${CPP_PERF_PORT}.`)
-        }
+      const serv = app.listen(CPP_PERF_PORT)
+      serv.on('listening', async () => {
         spinner.succeed(chalk.greenBright(`You can view result from http://127.0.0.1:${CPP_PERF_PORT}`));
         await sleep(1);
-        process.on('SIGINT', () => server.close());
-        app.on('close', () => { resolve(); })
+        process.on('SIGINT', () => serv.close());
+      })
+      serv.on('close', () => { resolve(); })
+      serv.on('error', (err) => {
+        alert(`❌ An error is thrown by Express: ${err.message}`)
       })
     }
     else {
@@ -743,7 +751,7 @@ program
     if (RETURN_CODE === 0)
       console.log(chalk.greenBright(`✔ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with exit code ${RETURN_CODE}.`))
     else
-      console.log(chalk.greenBright(`❌ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with exit code ${RETURN_CODE}.`))
+      console.log(chalk.redBright(`❌ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with exit code ${RETURN_CODE}.`))
 
     if (RETURN_CODE === 0 && COLLECT_PROFILE)
       await startCollectProfile(sf);
