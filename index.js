@@ -42,8 +42,6 @@ const GCC_COMPILE_FLAGS_NO_PROFILE = "";
 const MAX_INPUT_SNAPSHOT_LENGTH = 1024;
 // 本地服务器端口，用于呈现性能数据
 const CPP_PERF_PORT = 23456;
-// 可执行文件的后缀
-const EXCUTABLE_FILE_SUFFIX = ".exe";
 // 默认设置
 let GCC_COMPILE_FLAGS = "";
 let GCC_OPTIMIZE_FLAGS = "-std=c++17 -O2";
@@ -398,8 +396,8 @@ const startCollectCodes = () => {
 }
 
 // 收集信息文件
-// 1-4: gprof xxx.exe gmon.out -b -p/-q -L -l?
-// 5: gcov xxx.exe -t -r -i -m
+// 1-4: gprof xxx gmon.out -b -p/-q -L -l?
+// 5: gcov xxx -t -r -i -m
 // convert: 根据收集的文件集合判断是否启用路径映射
 const startCollectProfile = (sf) => {
   const runSubprocess = (name, argv, handler, spinner, cb, convert = () => {}, errMsg = "Error: Cannot parse the result from gmon.out.") => {
@@ -431,7 +429,7 @@ const startCollectProfile = (sf) => {
     // process 1
     runSubprocess(
       'gprof',
-      [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-p', '-L'], 
+      [COMPILE_TARGET, 'gmon.out', '-b', '-p', '-L'], 
       readFlatNormal,
       spinner,
       () => {
@@ -439,7 +437,7 @@ const startCollectProfile = (sf) => {
         // process 2
         runSubprocess(
           'gprof',
-          [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-p', '-l', '-L'], 
+          [COMPILE_TARGET, 'gmon.out', '-b', '-p', '-l', '-L'], 
           readFlatLine,
           spinner,
           () => {
@@ -447,7 +445,7 @@ const startCollectProfile = (sf) => {
             // process 3
             runSubprocess(
               'gprof',
-              [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-q', '-L'], 
+              [COMPILE_TARGET, 'gmon.out', '-b', '-q', '-L'], 
               readGraphNormal,
               spinner,
               () => {
@@ -455,7 +453,7 @@ const startCollectProfile = (sf) => {
                 spinner.text = 'Parsing profiling file... (4 / 4)'
                 runSubprocess(
                   'gprof',
-                  [COMPILE_TARGET + '.exe', 'gmon.out', '-b', '-q', '-l', '-L'], 
+                  [COMPILE_TARGET, 'gmon.out', '-b', '-q', '-l', '-L'], 
                   readGraphLine,
                   spinner,
                   () => {
