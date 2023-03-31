@@ -42,8 +42,6 @@ const GCC_COMPILE_FLAGS_NO_PROFILE = "";
 const MAX_INPUT_SNAPSHOT_LENGTH = 1024;
 // 本地服务器端口，用于呈现性能数据
 const CPP_PERF_PORT = 23456;
-// 可执行文件的后缀
-const EXCUTABLE_FILE_SUFFIX = ".exe";
 // 默认设置
 let GCC_COMPILE_FLAGS = "";
 let GCC_OPTIMIZE_FLAGS = "-std=c++17 -O2";
@@ -149,7 +147,7 @@ const abstract = (arr) => {
   return ret;
 }
 
-const excutableFile = (str) => {
+const executableFileFormat = (str) => {
   if (process.platform === "win32")
     return str + ".exe";
   return path.join('.', str);
@@ -263,7 +261,7 @@ const startCompile = async () => {
       'g++',
       abstract([...COMPILE_FILES
         , '-o'
-        , excutableFile(COMPILE_TARGET)
+        , executableFileFormat(COMPILE_TARGET)
         , ...((GCC_COMPILE_FLAGS + ' ' + GCC_OPTIMIZE_FLAGS).split(' '))]), {
         env: COMPILE_ENV,
         cwd: CWD,
@@ -294,7 +292,7 @@ const startRun = () => {
     INPUT_LENGTH = INPUT_SNAPSHOT.length;
     INPUT_SNAPSHOT = INPUT_SNAPSHOT.slice(0, MAX_INPUT_SNAPSHOT_LENGTH);
     cp = child_process.spawn(
-      excutableFile(COMPILE_TARGET),
+      executableFileFormat(COMPILE_TARGET),
       [], {
         cwd: CWD,
         timeout: RUN_TIMEOUT
@@ -322,7 +320,7 @@ const startRun = () => {
       alert(`Error: Input file ${RUN_STDIN} not found.`);
     }
     cp = child_process.spawn(
-      excutableFile(COMPILE_TARGET),
+      executableFileFormat(COMPILE_TARGET),
       [], {
         cwd: CWD,
         timeout: RUN_TIMEOUT,
@@ -437,7 +435,7 @@ const startCollectProfile = (sf) => {
     // process 1
     runSubprocess(
       'gprof',
-      [excutableFile(COMPILE_TARGET), 'gmon.out', '-b', '-p', '-L'], 
+      [executableFileFormat(COMPILE_TARGET), 'gmon.out', '-b', '-p', '-L'], 
       readFlatNormal,
       spinner,
       () => {
@@ -445,7 +443,7 @@ const startCollectProfile = (sf) => {
         // process 2
         runSubprocess(
           'gprof',
-          [excutableFile(COMPILE_TARGET), 'gmon.out', '-b', '-p', '-l', '-L'], 
+          [executableFileFormat(COMPILE_TARGET), 'gmon.out', '-b', '-p', '-l', '-L'], 
           readFlatLine,
           spinner,
           () => {
@@ -453,7 +451,7 @@ const startCollectProfile = (sf) => {
             // process 3
             runSubprocess(
               'gprof',
-              [excutableFile(COMPILE_TARGET), 'gmon.out', '-b', '-q', '-L'], 
+              [executableFileFormat(COMPILE_TARGET), 'gmon.out', '-b', '-q', '-L'], 
               readGraphNormal,
               spinner,
               () => {
@@ -461,7 +459,7 @@ const startCollectProfile = (sf) => {
                 spinner.text = 'Parsing profiling file... (4 / 4)'
                 runSubprocess(
                   'gprof',
-                  [excutableFile(COMPILE_TARGET), 'gmon.out', '-b', '-q', '-l', '-L'], 
+                  [executableFileFormat(COMPILE_TARGET), 'gmon.out', '-b', '-q', '-l', '-L'], 
                   readGraphLine,
                   spinner,
                   () => {
@@ -470,7 +468,7 @@ const startCollectProfile = (sf) => {
                     // process 5
                     runSubprocess(
                       'gcov',
-                      [excutableFile(COMPILE_TARGET), '-t', '-r', '-i', '-m'], 
+                      [executableFileFormat(COMPILE_TARGET), '-t', '-r', '-i', '-m'], 
                       readCoverJSON,
                       _spinner,
                       () => {
