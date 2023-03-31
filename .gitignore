@@ -3,5 +3,3 @@ node_modules/
 test/
 build/
 binding.gyp
-main*
-*.pfconf
