@@ -148,8 +148,11 @@ const abstract = (arr) => {
 }
 
 const executableFileFormat = (str) => {
-  if (process.platform === "win32")
+  if (process.platform === "win32") {
+    if (path.extname(str) === ".exe")
+      return str;
     return str + ".exe";
+  }
   return path.join('.', str);
 }
 
