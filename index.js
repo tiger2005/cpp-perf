@@ -159,7 +159,7 @@ const executableFileFormat = (str) => {
     return str + ".exe";
   }
   if (process.platform === "linux") 
-    return "./" + str;
+    return "./" + path.normalize(str);
 }
 
 // 监测程序的引用
