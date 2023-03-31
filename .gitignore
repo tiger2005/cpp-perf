@@ -5,3 +5,4 @@ build/
 binding.gyp
 *.pfconf
 main*
+gmon.out
