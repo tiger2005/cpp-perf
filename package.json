@@ -1,7 +1,7 @@
 {
   "name": "cpp-perf",
   "version": "0.1.0",
-  "description": "A simple C++ performance visualizer for Windows.",
+  "description": "A simple C++ performance visualizer.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
