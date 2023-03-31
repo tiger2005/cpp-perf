@@ -99,6 +99,9 @@ static inline unsigned long get_cpu_proc_occupy(int pid)
     return (utime + stime + cutime + cstime);
 }
 
+static unsigned long last_time = 0;
+static unsigned long last_system_time = 0;
+
 Napi::Value GetCpuUsageRatio(const Napi::CallbackInfo& _info)
 {
     Napi::Env env = _info.Env();
@@ -108,24 +111,26 @@ Napi::Value GetCpuUsageRatio(const Napi::CallbackInfo& _info)
         return env.Null();
     }
     int pid = _info[0].As<Napi::Number>().Int32Value();
-    unsigned long totalcputime1, totalcputime2;
-    unsigned long procputime1, procputime2;
+    unsigned long system_time, time;
 
-    totalcputime1 = get_cpu_total_occupy();
-    procputime1 = get_cpu_proc_occupy(pid);
-
-    // FIXME: the 200ms is a magic number, works well
-    usleep(200000); // sleep 200ms to fetch two time point cpu usage snapshots sample for later calculation
-
-    totalcputime2 = get_cpu_total_occupy();
-    procputime2 = get_cpu_proc_occupy(pid);
+    system_time = get_cpu_total_occupy();
+    time = get_cpu_proc_occupy(pid);
 
     float pcpu = 0.0;
-    if (0 != totalcputime2 - totalcputime1)
-        pcpu = (procputime2 - procputime1) / float(totalcputime2 - totalcputime1); // float number
+
+    if ((last_system_time == 0) || (last_time == 0)) {
+        // First call, just set the last values.
+        last_system_time = system_time;
+        last_time = time;
+        return Napi::Number::New(env, 0);
+    }
+    
+    if (0 != time - last_time)
+        pcpu = 1.0 * float(time - last_time) / float(system_time - last_system_time); // float number
 
     int cpu_num = get_nprocs();
     pcpu *= cpu_num; // should multiply cpu num in multiple cpu machine
+    last_system_time = system_time; last_time = time;
 
     return Napi::Number::New(env, pcpu);
 }
@@ -147,7 +152,7 @@ Napi::Value GetMemoryUsage(const Napi::CallbackInfo& _info)
 
     fd = fopen(file_name, "r");
     if (nullptr == fd) {
-        Napi::TypeError::New(env, "NO_SUCH_PROCESS")
+        Napi::TypeError::New(env, "PID_NOT_FOUND")
             .ThrowAsJavaScriptException();
         return env.Null();
     }
@@ -181,7 +186,7 @@ Napi::Value GetIOBytes(const Napi::CallbackInfo& _info) {
 
     fd = fopen(file_name, "r");
     if (nullptr == fd) {
-        Napi::TypeError::New(env, "NO_SUCH_PROCESS")
+        Napi::TypeError::New(env, "PID_NOT_FOUND")
             .ThrowAsJavaScriptException();
         return env.Null();
     }
