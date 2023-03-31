@@ -23,7 +23,7 @@
 
 1. 显然，你得先克隆这个仓库到你的电脑。
 2. 确保电脑中安装了 Node.js 的较高版本，并且有 `mingw` 或 `g++` 中的 `g++`、`gcov` 和 `gprof`。最好将它们所在的同一个 `bin` 文件夹添加到环境变量中，可以使用 `g++ -v` 和类似的指令检测。
-3. 进入仓库根目录，跑一次 `npm install` 下载相关库。
+3. 进入仓库根目录，跑一次 `npm install --omit=dev` 下必需库。加上 `--omit=dev` 将会取消对 `node-addon-api` 依赖的获取，如果需要开发 C++ Addon 则不能加上这个开关。
 4. 建议使用指令 `npm link` 创建软链接，这样就可以在任意位置运行 `cpp-perf ...` 跑代码了。
 
 ### 一些默认设置
@@ -212,3 +212,22 @@ GetIOBytes(pid) // 根据进程返回一个 V8 环境下的数组，其中两个
 ```
 
 如果你有能力的话，也欢迎你帮助我们编译其他系统的 C++ Addon。在编译后，请将其命名为 `perf_[platform]_[arch].node` 并放在 `addon` 文件夹下。在 `run` 指令中，程序将会自动引入当前系统下的监视器文件并运行。测试完成后，请开启 PR 并提供源代码和编译好的 `node` 文件。
+
+根据反馈，在含有 `binding.gyp` 的项目中运行 `npm install` 会导致项目自动开始编译，而这并不是我们期待的。因此这个文件被加入到 `.gitignore` 中，下面给出基础模板：
+
+```json
+{
+  "targets": [
+    {
+      "target_name": "perf_win32",
+      "sources": [
+        "./addon/perf_win32.cpp"
+      ],
+      "defines": [ "NAPI_DISABLE_CPP_EXCEPTIONS" ],
+      "include_dirs": [
+        "<!@(node -p \"require('node-addon-api').include\")"
+      ]
+    }
+  ]
+}
+```
