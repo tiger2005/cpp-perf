@@ -427,7 +427,8 @@ const startCollectProfile = (sf) => {
       content.stdout.on('data', data => { stdo += data.toString('hex') })
       content.on('close', (err) => {
         if (err) {
-          spinner.fail(chalk.redBright(`Error: gprof returns with exit code ${err}.`));
+          spinner.fail(chalk.redBright(`Error: ${name} returns with exit code ${err}.`));
+          console.log(chalk.redBright(`= CMD: ${name} ${argv.join(' ')}`))
           process.exit(4);
         }
         PROFILE_ARRAY.push(handler(iconv.decode(Buffer.from(stdo, 'hex'), CMD_ENCODE_RULE), convert));
@@ -444,7 +445,7 @@ const startCollectProfile = (sf) => {
     // process 1
     runSubprocess(
       'gprof',
-      [executableFileFormat(COMPILE_TARGET), 'gmon.out', '-b', '-p', '-L'], 
+      [executableFileFormat(COMPILE_TARGET), 'gmon.out', '--brief', '--flat-profile', '--print-path'], 
       readFlatNormal,
       spinner,
       () => {
@@ -452,7 +453,7 @@ const startCollectProfile = (sf) => {
         // process 2
         runSubprocess(
           'gprof',
-          [executableFileFormat(COMPILE_TARGET), 'gmon.out', '-b', '-p', '-l', '-L'], 
+          [executableFileFormat(COMPILE_TARGET), 'gmon.out', '--brief', '--flat-profile', '--line', '--print-path'], 
           readFlatLine,
           spinner,
           () => {
@@ -460,7 +461,7 @@ const startCollectProfile = (sf) => {
             // process 3
             runSubprocess(
               'gprof',
-              [executableFileFormat(COMPILE_TARGET), 'gmon.out', '-b', '-q', '-L'], 
+              [executableFileFormat(COMPILE_TARGET), 'gmon.out', '--brief', '--graph', '--print-path'], 
               readGraphNormal,
               spinner,
               () => {
@@ -468,7 +469,7 @@ const startCollectProfile = (sf) => {
                 spinner.text = 'Parsing profiling file... (4 / 4)'
                 runSubprocess(
                   'gprof',
-                  [executableFileFormat(COMPILE_TARGET), 'gmon.out', '-b', '-q', '-l', '-L'], 
+                  [executableFileFormat(COMPILE_TARGET), 'gmon.out', '--brief', '--graph', '--line', '--print-path'], 
                   readGraphLine,
                   spinner,
                   () => {
@@ -477,7 +478,7 @@ const startCollectProfile = (sf) => {
                     // process 5
                     runSubprocess(
                       'gcov',
-                      [executableFileFormat(COMPILE_TARGET), '-t', '-r', '-i', '-m'], 
+                      [executableFileFormat(COMPILE_TARGET), '--stdout', '--relative-only', '--json-format', '--demangled-names'], 
                       readCoverJSON,
                       _spinner,
                       () => {
@@ -684,6 +685,7 @@ program
   .option('-s, --send-to-server', 'Send the result to another local server right after the run')
   .option('-i, --id <id>', 'ID for this run a.k.a. definition of "%i%"')
   .action( async (f, cmd) => {
+    console.log(chalk.cyanBright("< Step 1/3: Preparation >"));
     let content = "";
     if (path.extname(f) !== ".pfconf")
       f += ".pfconf";
@@ -748,14 +750,15 @@ program
 
     prepareEnvironment();
     let sf = startCollectCodes();
+    console.log(chalk.cyanBright("< Step 2/3: Execution >"));
     await startCompile();
     await startRun()
-    // process.on('SIGINT', () => process.exit(1));
     if (RETURN_CODE === 0)
       console.log(chalk.greenBright(`✔ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with exit code ${RETURN_CODE}.`))
     else
       console.log(chalk.redBright(`❌ Program exits in ${TIME_TICKS.length === 0 ? 0 : TIME_TICKS[TIME_TICKS.length - 1].t} ms, with exit code ${RETURN_CODE}.`))
 
+    console.log(chalk.cyanBright("< Step 3/3: Result Generation >"));
     if (RETURN_CODE === 0 && COLLECT_PROFILE)
       await startCollectProfile(sf);
 
