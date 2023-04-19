@@ -1,5 +1,7 @@
 ## cpp-perf
 
+[Github Repo](https://github.com/tiger2005/cpp-perf) | [NPM Package](https://www.npmjs.com/package/cpp-perf)
+
 ![$$Z1`GKZ3( 0KS$9_1`@P(3](https://user-images.githubusercontent.com/41613797/232954641-1822504f-4658-4bd6-a4ae-0ad75f37c2bb.png)
 
 **注意：** 这个项目仍然处于“开发中”状态，出于本人能力无法快速更新，Issue 会不定期进行筛选和处理。不推荐在这个程序里喂炒饭，后果自负。
