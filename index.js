@@ -52,6 +52,7 @@ let RUN_TIMEOUT = undefined;
 let RUN_TYPE = "pipe";
 let RUN_INTERVAL = 10;
 let RUN_STDIN = "";
+let RUN_PARAMS = [];
 let COLLECT_PROFILE = false;
 let COLLECT_CPU = true;
 let COLLECT_MEMORY = true;
@@ -105,6 +106,7 @@ const TEMPLATE_CPCONF = (fileDir = "main.cpp") => {
       "interval": RUN_INTERVAL,
       "type": RUN_TYPE,
       "stdin": RUN_STDIN,
+      "params": RUN_PARAMS,
     },
     "collect": {
       "profile": COLLECT_PROFILE,
@@ -302,7 +304,7 @@ const startRun = () => {
     INPUT_SNAPSHOT = INPUT_SNAPSHOT.slice(0, MAX_INPUT_SNAPSHOT_LENGTH);
     cp = child_process.spawn(
       executableFileFormat(COMPILE_TARGET),
-      [], {
+      RUN_PARAMS, {
         cwd: CWD,
         timeout: RUN_TIMEOUT
       }
@@ -330,7 +332,7 @@ const startRun = () => {
     }
     cp = child_process.spawn(
       executableFileFormat(COMPILE_TARGET),
-      [], {
+      RUN_PARAMS, {
         cwd: CWD,
         timeout: RUN_TIMEOUT,
         stdio: [fs.openSync(path.join(CWD, RUN_STDIN), 'r'), 'pipe', 'pipe']
@@ -716,6 +718,7 @@ program
       RUN_INTERVAL = content.run.interval;
     RUN_TYPE = content.run.type;
     RUN_STDIN = content.run.stdin;
+    RUN_PARAMS = content.run.params;
     COLLECT_PROFILE = content.collect.profile;
     COLLECT_CPU = content.collect.cpu;
     COLLECT_MEMORY = content.collect.memory;

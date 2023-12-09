@@ -84,7 +84,9 @@ const CPP_PERF_PORT = 23456;
     // 输入信息
     // 如果 "type" 字段为 "pipe"，则代表输入信息
     // 否则，代表输入文件
-    "stdin": "input.txt"
+    "stdin": "input.txt",
+    // 需要提供给程序的命令行参数列表，应当是一个字符串数组
+    "params": []
   },
   "collect": {
     // 是否收集调试信息
